@@ -11,6 +11,7 @@ const admin = require('firebase-admin');
 admin.initializeApp();
 
 const db = admin.firestore();
+const auth = admin.auth();
 
 exports.createPublicProfile = functions.https.onCall(async (data, context) => {
     checkAuthentication(context)
@@ -35,6 +36,12 @@ exports.createPublicProfile = functions.https.onCall(async (data, context) => {
             'already-exists',
             'This username already belongs to an existing user'
         )
+    }
+
+    // Check if the user === admin
+    const user = await auth.getUser(context.auth.uid)
+    if(user.email === functions.config().accounts.admin){
+        await auth.setCustomUserClaims(context.auth.uid, { admin: true })
     }
 
     // Success
@@ -94,3 +101,5 @@ function checkAuthentication(context) {
 }
 
 // firebase deploy --only functions
+// firebase functions:config:set accounts.admin="admin@gmail.com"
+// firebase functions:config:get
