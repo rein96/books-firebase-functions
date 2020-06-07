@@ -11,6 +11,40 @@ const admin = require('firebase-admin');
 admin.initializeApp();
 
 const db = admin.firestore();
+
+exports.createPublicProfile = functions.https.onCall(async (data, context) => {
+    checkAuthentication(context)
+
+    dataValidator(data, { username: 'string' })   // email and password is created in firebase.js in gatsby FE
+
+    // check userId == uid
+    const userProfile = await db.collection('publicProfiles')
+        .where('userId', '==', context.auth.uid).limit(1).get()
+
+    if (!userProfile.empty) {
+        throw new functions.https.HttpsError(
+            'already-exists',
+            'This username already has a public profile'
+        )
+    }
+
+    // check username in docs
+    const publicProfile = await db.collection('publicProfiles').doc(data.username).get()
+    if (publicProfile.exists) {
+        throw new functions.https.HttpsError(
+            'already-exists',
+            'This username already belongs to an existing user'
+        )
+    }
+
+    // Success
+    return db.collection('publicProfiles').doc(data.username).set({
+        userId: context.auth.uid
+    })
+
+})
+
+
 exports.postComment = functions.https.onCall((data, context) => {
     checkAuthentication(context)
 
@@ -39,8 +73,8 @@ function dataValidator(data, validKeys) {
             'Data object contains invalid number of properties'
         )
     } else {
-        for(let key in data){
-            if(!validKeys[key] || typeof data[key] !== validKeys[key]){
+        for (let key in data) {
+            if (!validKeys[key] || typeof data[key] !== validKeys[key]) {
                 throw new functions.https.HttpsError(
                     'invalid-argument',
                     'Data object contains invalid properties'
